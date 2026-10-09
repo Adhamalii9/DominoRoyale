@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Connection Test ---
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // --- User Profiles ---
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['username', 'createdAt']) &&
+               data.username is string && data.username.size() >= 1 && data.username.size() <= 128 &&
+               data.createdAt is number &&
+               (data.get('email', null) == null || data.email is string) &&
+               (data.get('photoURL', null) == null || data.photoURL is string);
+      }
+
+      allow get: if isSignedIn(); 
+      allow list: if isSignedIn() && request.query.limit <= 50;
+      
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming());
+    }
+
+    // --- Friendships ---
+    match /friendships/{friendshipId} {
+      function isValidFriendship(data) {
+        return data.keys().hasAll(['uids', 'status', 'timestamp']) &&
+               data.uids is list && data.uids.size() == 2 &&
+               data.status in ['active', 'pending'];
+      }
+
+      allow list: if isSignedIn() && request.auth.uid in resource.data.uids;
+      allow get: if isSignedIn() && request.auth.uid in resource.data.uids;
+      allow create: if isValidId(friendshipId) && isSignedIn() && request.auth.uid in incoming().uids && isValidFriendship(incoming());
+      allow delete: if isSignedIn() && request.auth.uid in existing().uids;
+    }
+
+    // --- Friend Requests ---
+    match /friend_requests/{requestId} {
+      function isValidRequest(data) {
+        return data.keys().hasAll(['fromId', 'fromName', 'toId', 'status', 'timestamp']) &&
+               isValidId(data.fromId) &&
+               isValidId(data.toId) &&
+               data.fromName is string && data.fromName.size() <= 128 &&
+               data.status in ['pending', 'accepted', 'rejected'];
+      }
+
+      allow list: if isSignedIn() && (resource.data.toId == request.auth.uid || resource.data.fromId == request.auth.uid);
+      allow get: if isSignedIn() && (resource.data.toId == request.auth.uid || resource.data.fromId == request.auth.uid);
+      
+      allow create: if isValidId(requestId) && isSignedIn() && isOwner(incoming().fromId) && isValidRequest(incoming());
+      allow update: if isSignedIn() && (isOwner(existing().toId) || isOwner(existing().fromId)) && isValidRequest(incoming());
+      allow delete: if isSignedIn() && (isOwner(existing().fromId) || isOwner(existing().toId));
+    }
+
+    // --- Game Invites ---
+    match /invites/{inviteId} {
+      function isValidInvite(data) {
+        return data.keys().hasAll(['fromId', 'fromName', 'toId', 'gameId', 'status', 'timestamp']) &&
+               isValidId(data.fromId) &&
+               isValidId(data.toId) &&
+               isValidId(data.gameId) &&
+               data.fromName is string && data.fromName.size() <= 128 &&
+               data.status in ['pending', 'accepted', 'declined'];
+      }
+
+      allow list: if isSignedIn() && (resource.data.toId == request.auth.uid || resource.data.fromId == request.auth.uid);
+      allow get: if isSignedIn() && (resource.data.toId == request.auth.uid || resource.data.fromId == request.auth.uid);
+      allow create: if isValidId(inviteId) && isSignedIn() && isOwner(incoming().fromId) && isValidInvite(incoming());
+      allow delete: if isSignedIn() && (isOwner(existing().fromId) || isOwner(existing().toId));
+    }
+
+    // --- Games ---
+    match /domino_games/{gameId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
+
+      match /hands/{playerId} {
+        allow read: if isSignedIn() && (request.auth.uid == playerId || playerId.matches('^mock_.*'));
+        allow create, update, delete: if isSignedIn();
+      }
+    }
+  }
+}

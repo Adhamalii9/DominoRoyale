@@ -1,0 +1,47 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", serif;
+}
+
+@layer base {
+  html, body, #root {
+    @apply bg-neutral-950 text-neutral-200 h-screen w-screen overflow-hidden;
+    margin: 0;
+    padding: 0;
+    position: fixed;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none !important;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+  }
+
+  @media (max-height: 500px) {
+    .short-hide {
+      display: none !important;
+    }
+    .short-compact {
+      padding-top: 0.5rem !important;
+      padding-bottom: 0.5rem !important;
+      height: auto !important;
+      min-height: 0 !important;
+    }
+  }
+}
+
+.bento-card {
+  @apply bg-neutral-900 border border-neutral-800 rounded-2xl p-5 shadow-sm;
+}
+
+.board-pattern {
+  background-image: radial-gradient(#262626 1px, transparent 1px);
+  background-size: 20px 20px;
+}

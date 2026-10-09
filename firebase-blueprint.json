@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "Domino": {
+      "title": "Domino",
+      "type": "object",
+      "properties": {
+        "a": { "type": "number" },
+        "b": { "type": "number" }
+      }
+    },
+    "Game": {
+      "title": "Game",
+      "description": "A domino game session",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["waiting", "active", "finished"] },
+        "players": { "type": "array", "description": "List of player UIDs" },
+        "playerNames": { "type": "object", "description": "Map of UID to display name" },
+        "turn": { "type": "number", "description": "Index of current player in players array" },
+        "board": { "type": "array", "description": "List of placed dominoes" },
+        "leftEnd": { "type": "number" },
+        "rightEnd": { "type": "number" },
+        "deck": { "type": "array", "items": { "$ref": "#/entities/Domino" } },
+        "lastMoveAt": { "type": "number" },
+        "winner": { "type": "string" }
+      },
+      "required": ["status", "players", "turn", "board"]
+    },
+    "Hand": {
+      "title": "Hand",
+      "description": "Private hand of a player",
+      "type": "object",
+      "properties": {
+        "tiles": { "type": "array", "items": { "$ref": "#/entities/Domino" } }
+      },
+      "required": ["tiles"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "type": "object",
+      "properties": {
+        "username": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "email": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["username"]
+    },
+    "FriendRequest": {
+      "title": "Friend Request",
+      "type": "object",
+      "properties": {
+        "fromId": { "type": "string" },
+        "fromName": { "type": "string" },
+        "toId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted"] },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["fromId", "toId", "status"]
+    },
+    "GameInvite": {
+      "title": "Game Invite",
+      "type": "object",
+      "properties": {
+        "fromId": { "type": "string" },
+        "fromName": { "type": "string" },
+        "toId": { "type": "string" },
+        "gameId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending"] },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["fromId", "toId", "gameId"]
+    },
+    "Friendship": {
+      "title": "Friendship",
+      "type": "object",
+      "properties": {
+        "uids": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["active"] },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["uids", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User account info"
+    },
+    "/friendships/{friendshipId}": {
+      "schema": "Friendship",
+      "description": "Active friendships"
+    },
+    "/friend_requests/{requestId}": {
+      "schema": "FriendRequest",
+      "description": "Pending and historical friend requests"
+    },
+    "/invites/{inviteId}": {
+      "schema": "GameInvite",
+      "description": "Pending game invitations"
+    },
+    "/domino_games/{gameId}": {
+      "schema": "Game",
+      "description": "Main game state"
+    },
+    "/domino_games/{gameId}/hands/{playerId}": {
+      "schema": "Hand",
+      "description": "Player private pieces"
+    },
+    "/test/{docId}": {
+      "schema": "object",
+      "description": "Connection test path"
+    }
+  }
+}

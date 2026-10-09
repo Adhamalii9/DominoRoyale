@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- User Profiles ---
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['username', 'email', 'photoURL', 'createdAt']) &&
+               data.keys().size() == 4 &&
+               data.username is string && data.username.size() >= 1 && data.username.size() <= 32 &&
+               data.email is string && data.email.size() <= 128 &&
+               data.photoURL is string && data.photoURL.size() <= 1024 &&
+               data.createdAt is number;
+      }
+
+      allow get: if isSignedIn(); 
+      allow list: if isSignedIn() && request.query.limit <= 10; // Basic protection against scraping
+      
+      allow create: if isValidId(userId) && isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['username', 'photoURL'])
+      );
+
+      // Friends subcollection
+      match /friends/{friendId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId) && isValidId(friendId);
+      }
+    }
+
+    // --- Friend Requests ---
+    match /friend_requests/{requestId} {
+      function isValidRequest(data) {
+        return data.keys().hasAll(['fromId', 'fromName', 'toId', 'status', 'timestamp']) &&
+               data.keys().size() == 5 &&
+               isValidId(data.fromId) &&
+               isValidId(data.toId) &&
+               data.fromName is string && data.fromName.size() <= 64 &&
+               data.status in ['pending', 'accepted'];
+      }
+
+      allow list: if isSignedIn() && (resource.data.toId == request.auth.uid || resource.data.fromId == request.auth.uid);
+      allow get: if isSignedIn() && (resource.data.toId == request.auth.uid || resource.data.fromId == request.auth.uid);
+      
+      allow create: if isValidId(requestId) && isSignedIn() && isOwner(incoming().fromId) && isValidRequest(incoming());
+      allow update: if isOwner(existing().toId) && incoming().status == 'accepted' && incoming().diff(existing()).affectedKeys().hasOnly(['status']);
+      allow delete: if isSignedIn() && (isOwner(existing().fromId) || isOwner(existing().toId));
+    }
+
+    // --- Game Invites ---
+    match /invites/{inviteId} {
+      function isValidInvite(data) {
+        return data.keys().hasAll(['fromId', 'fromName', 'toId', 'gameId', 'status', 'timestamp']) &&
+               data.keys().size() == 6 &&
+               isValidId(data.fromId) &&
+               isValidId(data.toId) &&
+               isValidId(data.gameId) &&
+               data.fromName is string && data.fromName.size() <= 64 &&
+               data.status == 'pending';
+      }
+
+      allow list: if isSignedIn() && resource.data.toId == request.auth.uid;
+      allow create: if isValidId(inviteId) && isSignedIn() && isOwner(incoming().fromId) && isValidInvite(incoming());
+      allow delete: if isSignedIn() && (isOwner(existing().fromId) || isOwner(existing().toId));
+    }
+
+    // --- Games ---
+    match /domino_games/{gameId} {
+      allow list: if isSignedIn() && (resource.data.status == 'waiting' || request.auth.uid in resource.data.state.players);
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); // Keep flexible for the prototype engine logic
+
+      match /hands/{playerId} {
+        allow read: if isSignedIn() && (request.auth.uid == playerId || playerId.matches('^mock_.*'));
+        allow write: if isSignedIn();
+      }
+    }
+  }
+}
